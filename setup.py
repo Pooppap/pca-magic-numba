@@ -1,13 +1,13 @@
 from setuptools import setup, find_packages
 
 if __name__ == '__main__':
-  name = 'ppca'
+  name = 'ppca_numba'
   setup(
     name         = name,
     version      = "0.0.4",
     author       = 'Allen Tran',
     author_email = 'realallentran@gmail.com',
-    description  = 'Probabilistic PCA',
+    description  = 'Probabilistic PCA with NUMBA',
     packages     = find_packages(),
     classifiers  = [
       'Development Status :: 4 - Beta',
@@ -21,6 +21,7 @@ if __name__ == '__main__':
     install_requires = [
       'numpy',
       'scipy',
+      'numba',
     ],
 
 

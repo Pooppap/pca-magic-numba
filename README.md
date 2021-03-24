@@ -1,4 +1,7 @@
-[![CircleCI](https://circleci.com/gh/allentran/pca-magic.svg?style=svg)](https://circleci.com/gh/allentran/pca-magic)
+<!-- [![CircleCI](https://circleci.com/gh/allentran/pca-magic.svg?style=svg)](https://circleci.com/gh/allentran/pca-magic) -->
+# pca-magic-numba
+A modification of the original pca-magic probabilisitc principal components analysis with Numba Just-In-Time optimisation. Original document below.
+
 # pca-magic
 An implementaton of probabilisitc principal components analysis which is a variant of vanilla PCA that can be used to
 - compute factors where some of the data are missing

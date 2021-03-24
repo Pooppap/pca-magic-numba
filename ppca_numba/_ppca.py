@@ -1,6 +1,7 @@
 import os
-
 import numpy as np
+
+from numba import jit
 from scipy.linalg import orth
 
 
@@ -22,60 +23,54 @@ class PPCA():
 
         return (X - self.means) / self.stds
 
-    def fit(self, data, d=None, tol=1e-4, min_obs=10, verbose=False):
-
-        self.raw = data
-        self.raw[np.isinf(self.raw)] = np.max(self.raw[np.isfinite(self.raw)])
-
-        valid_series = np.sum(~np.isnan(self.raw), axis=0) >= min_obs
-
-        data = self.raw[:, valid_series].copy()
+    @staticmethod
+    @jit(nopython=True)
+    def _ppca_kernel(data, d, observed, missing, C, tol, verbose):
+        # initial
         N = data.shape[0]
         D = data.shape[1]
-
-        self.means = np.nanmean(data, axis=0)
-        self.stds = np.nanstd(data, axis=0)
-
-        data = self._standardize(data)
-        observed = ~np.isnan(data)
-        missing = np.sum(~observed)
-        data[~observed] = 0
-
-        # initial
-
-        if d is None:
-            d = data.shape[1]
         
-        if self.C is None:
-            C = np.random.randn(D, d)
-        else:
-            C = self.C
+        if C is None:
+            C = np.random.randn(D, d).astype(np.float32)
+
         CC = np.dot(C.T, C)
         X = np.dot(np.dot(data, C), np.linalg.inv(CC))
+        
         recon = np.dot(X, C.T)
+        recon = recon.ravel()
         recon[~observed] = 0
-        ss = np.sum((recon - data)**2)/(N*D - missing)
+        recon = recon.reshape(N, D)
 
+        ss = np.sum((recon - data)**2)/(N*D - missing)
         v0 = np.inf
         counter = 0
 
         while True:
-
-            Sx = np.linalg.inv(np.eye(d) + CC/ss)
+            Sx = np.linalg.inv(np.eye(d) + CC/ss).astype(np.float32)
 
             # e-step
             ss0 = ss
             if missing > 0:
                 proj = np.dot(X, C.T)
+                data = data.ravel()
+                proj = proj.ravel()
                 data[~observed] = proj[~observed]
+                data = data.reshape(N, D)
+                proj = proj.reshape(N, D)
+
             X = np.dot(np.dot(data, C), Sx) / ss
+            X = X.astype(np.float32)
 
             # m-step
             XX = np.dot(X.T, X)
-            C = np.dot(np.dot(data.T, X), np.linalg.pinv(XX + N*Sx))
+            C = np.dot(np.dot(data.T, X), np.linalg.pinv(XX + N*Sx)).astype(np.float32)
             CC = np.dot(C.T, C)
+
             recon = np.dot(X, C.T)
+            recon = recon.ravel()
             recon[~observed] = 0
+            recon = recon.reshape(N, D)
+
             ss = (np.sum((recon-data)**2) + N*np.sum(CC*Sx) + missing*ss0)/(N*D)
 
             # calc diff for convergence
@@ -92,8 +87,32 @@ class PPCA():
 
             counter += 1
             v0 = v1
+        
+        return C, data
 
+    def fit(self, data, d=None, tol=1e-4, min_obs=10, verbose=False):
 
+        self.raw = data
+        self.raw[np.isinf(self.raw)] = np.max(self.raw[np.isfinite(self.raw)])
+
+        valid_series = np.sum(~np.isnan(self.raw), axis=0) >= min_obs
+        data = self.raw[:, valid_series].copy()
+
+        self.means = np.nanmean(data, axis=0)
+        self.stds = np.nanstd(data, axis=0)
+
+        data = self._standardize(data)
+        data_shape = data.shape
+        data = data.ravel()
+        observed = ~np.isnan(data)
+        missing = np.sum(~observed)
+        data[~observed] = 0
+        data = data.reshape(data_shape)
+
+        if d is None:
+            d = data.shape[1]
+
+        C, data = self._ppca_kernel(data, d, observed, missing, self.C, tol, verbose)
         C = orth(C)
         vals, vecs = np.linalg.eig(np.cov(np.dot(data, C).T))
         order = np.flipud(np.argsort(vals))
@@ -137,3 +156,6 @@ class PPCA():
         assert os.path.isfile(fpath)
 
         self.C = np.load(fpath)
+
+    def reset(self):
+        self.__init__()
