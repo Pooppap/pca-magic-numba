@@ -24,7 +24,7 @@ class PPCA():
         return (X - self.means) / self.stds
 
     @staticmethod
-    @jit(nopython=True)
+    @jit(nopython=True, cache=True)
     def _ppca_kernel(data, d, observed, missing, C, tol, verbose):
         # initial
         N = data.shape[0]
